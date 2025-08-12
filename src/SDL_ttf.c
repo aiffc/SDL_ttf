@@ -456,7 +456,7 @@ static bool Find_GlyphByIndex(TTF_Font *font, FT_UInt idx, int want_bitmap, int 
 // Blend colored glyphs
 static void BG_Blended_Color(const TTF_Image *image, Uint32 *destination, Sint32 srcskip, Uint32 dstskip, Uint8 fg_alpha)
 {
-    const Uint8  *src   = image->buffer;
+    const Uint32 *src   = (Uint32 *)image->buffer;
     Uint32      *dst    = destination;
     Uint32       width  = image->width;
     Uint32       height = image->rows;
@@ -465,12 +465,10 @@ static void BG_Blended_Color(const TTF_Image *image, Uint32 *destination, Sint32
         while (height--) {
             /* *INDENT-OFF* */
             DUFFS_LOOP4(
-                SDL_memcpy(dst, src, sizeof(Uint32));
-                src += sizeof(Uint32);
-                dst += 1;
+                *dst++ = *src++;
             , width);
             /* *INDENT-ON* */
-            src += srcskip;
+            src = (const Uint32 *)((const Uint8 *)src + srcskip);
             dst = (Uint32 *)((Uint8 *)dst + dstskip);
         }
     } else {
@@ -482,8 +480,7 @@ static void BG_Blended_Color(const TTF_Image *image, Uint32 *destination, Sint32
             DUFFS_LOOP4(
                     /* prevent misaligned load: tmp = *src++; */
                     // eventually, we can expect the compiler to replace the memcpy call with something optimized
-                    SDL_memcpy(&tmp, src, sizeof(tmp));
-                    src += sizeof(Uint32);
+                    SDL_memcpy(&tmp, src++, sizeof(tmp));
                     alpha = tmp >> 24;
                     tmp &= ~0xFF000000;
                     alpha = fg_alpha * alpha;
@@ -491,7 +488,7 @@ static void BG_Blended_Color(const TTF_Image *image, Uint32 *destination, Sint32
                     *dst++ = tmp | alpha
                     , width);
             /* *INDENT-ON* */
-            src += srcskip;
+            src = (const Uint32 *)((const Uint8 *)src + srcskip);
             dst = (Uint32 *)((Uint8 *)dst + dstskip);
         }
     }
@@ -500,7 +497,7 @@ static void BG_Blended_Color(const TTF_Image *image, Uint32 *destination, Sint32
 // Blend with LCD rendering
 static void BG_Blended_LCD(const TTF_Image *image, Uint32 *destination, Sint32 srcskip, Uint32 dstskip, SDL_Color *fg)
 {
-    const Uint8 *src    = image->buffer;
+    const Uint32 *src   = (Uint32 *)image->buffer;
     Uint32      *dst    = destination;
     Uint32       width  = image->width;
     Uint32       height = image->rows;
@@ -518,8 +515,8 @@ static void BG_Blended_LCD(const TTF_Image *image, Uint32 *destination, Sint32 s
     while (height--) {
         /* *INDENT-OFF* */
         DUFFS_LOOP4(
-                SDL_memcpy(&tmp, src, sizeof(tmp));
-                src += sizeof(Uint32);
+                /* prevent misaligned load: tmp = *src++; */
+                SDL_memcpy(&tmp, src++, sizeof(tmp));
 
                 if (tmp) {
                     bg = *dst;
@@ -552,7 +549,7 @@ static void BG_Blended_LCD(const TTF_Image *image, Uint32 *destination, Sint32 s
 
                 , width);
         /* *INDENT-ON* */
-        src += srcskip;
+        src = (const Uint32 *)((const Uint8 *)src + srcskip);
         dst = (Uint32 *)((Uint8 *)dst + dstskip);
     }
 
@@ -650,18 +647,10 @@ static void BG_Blended_32(const TTF_Image *image, Uint32 *destination, Sint32 sr
 #endif
 
 #if defined(HAVE_SSE2_INTRINSICS)
-
-// This does an unaligned SIMD load, the pointer cast is technically UB but no compiler
-// probably actually cares as long as the alignment sanitizer is disabled, the wrapper is
-// necessary to have the smallest surface where the sanitizer is turned off
-static inline __m128i __attribute__((no_sanitize("alignment"))) _mm_loadu_si128_unaligned(const void *ptr) {
-    return _mm_loadu_si128(ptr);
-}
-
 // Apply: alpha_table[i] = i << 24;
 static void BG_Blended_Opaque_SSE(const TTF_Image *image, Uint32 *destination, Sint32 srcskip, Uint32 dstskip)
 {
-    const Uint8   *src    = image->buffer;
+    const __m128i *src    = (__m128i *)image->buffer;
     __m128i       *dst    = (__m128i *)destination;
     Uint32         width  = image->width / 16;
     Uint32         height = image->rows;
@@ -673,7 +662,7 @@ static void BG_Blended_Opaque_SSE(const TTF_Image *image, Uint32 *destination, S
         /* *INDENT-OFF* */
         DUFFS_LOOP4(
             // Read 16 Uint8 at once and put into 4 __m128i
-            s  = _mm_loadu_si128_unaligned(src);// load unaligned
+            s  = _mm_loadu_si128(src);          // load unaligned
             d0 = _mm_load_si128(dst);           // load
             d1 = _mm_load_si128(dst + 1);       // load
             d2 = _mm_load_si128(dst + 2);       // load
@@ -698,17 +687,17 @@ static void BG_Blended_Opaque_SSE(const TTF_Image *image, Uint32 *destination, S
             _mm_store_si128(dst + 3, r3);       // store
 
             dst += 4;
-            src += sizeof(__m128i);
+            src += 1;
         , width);
         /* *INDENT-ON* */
-        src += srcskip;
+        src = (const __m128i *)((const Uint8 *)src + srcskip);
         dst = (__m128i *)((Uint8 *)dst + dstskip);
     }
 }
 
 static void BG_Blended_SSE(const TTF_Image *image, Uint32 *destination, Sint32 srcskip, Uint32 dstskip, Uint8 fg_alpha)
 {
-    const Uint8   *src    = image->buffer;
+    const __m128i *src    = (__m128i *)image->buffer;
     __m128i       *dst    = (__m128i *)destination;
     Uint32         width  = image->width / 16;
     Uint32         height = image->rows;
@@ -722,7 +711,7 @@ static void BG_Blended_SSE(const TTF_Image *image, Uint32 *destination, Sint32 s
         /* *INDENT-OFF* */
         DUFFS_LOOP4(
             // Read 16 Uint8 at once and put into 4 __m128i
-            s  = _mm_loadu_si128_unaligned(src);// load unaligned
+            s  = _mm_loadu_si128(src);          // load unaligned
             d0 = _mm_load_si128(dst);           // load
             d1 = _mm_load_si128(dst + 1);       // load
             d2 = _mm_load_si128(dst + 2);       // load
@@ -766,10 +755,10 @@ static void BG_Blended_SSE(const TTF_Image *image, Uint32 *destination, Sint32 s
             _mm_store_si128(dst + 3, r3);       // store
 
             dst += 4;
-            src += sizeof(__m128i);
+            src += 1;
         , width);
         /* *INDENT-ON* */
-        src += srcskip;
+        src = (const __m128i *)((const Uint8 *)src + srcskip);
         dst = (__m128i *)((Uint8 *)dst + dstskip);
     }
 }
@@ -921,7 +910,7 @@ static void BG(const TTF_Image *image, Uint8 *destination, Sint32 srcskip, Uint3
 #if defined(HAVE_BLIT_GLYPH_64)
 static void BG_64(const TTF_Image *image, Uint8 *destination, Sint32 srcskip, Uint32 dstskip)
 {
-    const Uint8  *src    = image->buffer;
+    const Uint64 *src    = (Uint64 *)image->buffer;
     Uint64       *dst    = (Uint64 *)destination;
     Uint32        width  = image->width / 8;
     Uint32        height = image->rows;
@@ -931,19 +920,18 @@ static void BG_64(const TTF_Image *image, Uint8 *destination, Sint32 srcskip, Ui
         /* *INDENT-OFF* */
         DUFFS_LOOP4(
               /* prevent misaligned load: *dst++ |= *src++; */
-              SDL_memcpy(&tmp, src, sizeof(tmp));
-              src += sizeof(Uint64);
+              SDL_memcpy(&tmp, src++, sizeof(tmp));
               *dst++ |= tmp;
         , width);
         /* *INDENT-ON* */
-        src += srcskip;
+        src = (const Uint64 *)((const Uint8 *)src + srcskip);
         dst = (Uint64 *)((Uint8 *)dst + dstskip);
     }
 }
 #elif defined(HAVE_BLIT_GLYPH_32)
 static void BG_32(const TTF_Image *image, Uint8 *destination, Sint32 srcskip, Uint32 dstskip)
 {
-    const Uint8  *src    = image->buffer;
+    const Uint32 *src    = (Uint32 *)image->buffer;
     Uint32       *dst    = (Uint32 *)destination;
     Uint32        width  = image->width / 4;
     Uint32        height = image->rows;
@@ -953,12 +941,11 @@ static void BG_32(const TTF_Image *image, Uint8 *destination, Sint32 srcskip, Ui
         /* *INDENT-OFF* */
         DUFFS_LOOP4(
             /* prevent misaligned load: *dst++ |= *src++; */
-            SDL_memcpy(&tmp, src, sizeof(tmp));
-            src += sizeof(Uint32);
+            SDL_memcpy(&tmp, src++, sizeof(tmp));
             *dst++ |= tmp;
         , width);
         /* *INDENT-ON* */
-        src += srcskip;
+        src = (const Uint32 *)((const Uint8 *)src + srcskip);
         dst = (Uint32 *)((Uint8 *)dst + dstskip);
     }
 }
@@ -967,7 +954,7 @@ static void BG_32(const TTF_Image *image, Uint8 *destination, Sint32 srcskip, Ui
 #if defined(HAVE_SSE2_INTRINSICS)
 static void BG_SSE(const TTF_Image *image, Uint8 *destination, Sint32 srcskip, Uint32 dstskip)
 {
-    const Uint8   *src    = image->buffer;
+    const __m128i *src    = (__m128i *)image->buffer;
     __m128i       *dst    = (__m128i *)destination;
     Uint32         width  = image->width / 16;
     Uint32         height = image->rows;
@@ -977,15 +964,15 @@ static void BG_SSE(const TTF_Image *image, Uint8 *destination, Sint32 srcskip, U
     while (height--) {
         /* *INDENT-OFF* */
         DUFFS_LOOP4(
-            s = _mm_loadu_si128_unaligned(src);   // load unaligned
+            s = _mm_loadu_si128(src);   // load unaligned
             d = _mm_load_si128(dst);    // load
             r = _mm_or_si128(d, s);     // or
             _mm_store_si128(dst, r);    // store
-            src += sizeof(__m128i);
+            src += 1;
             dst += 1;
         , width);
         /* *INDENT-ON* */
-        src += srcskip;
+        src = (const __m128i *)((const Uint8 *)src + srcskip);
         dst = (__m128i *)((Uint8 *)dst + dstskip);
     }
 }
@@ -1012,7 +999,7 @@ static void BG_NEON(const TTF_Image *image, Uint8 *destination, Sint32 srcskip, 
             dst += 16;
         , width);
         /* *INDENT-ON* */
-        src += srcskip;
+        src = (const Uint8 *)((const Uint8 *)src + srcskip);
         dst += dstskip;
     }
 }
@@ -1173,10 +1160,6 @@ static int Get_Alignment(void)
 #endif
 }
 
-// Depending on the architecture, the SIMD implementations of Glyph Blitting functions may not
-// work if srcskip/dstskip is not a multiple of 16, if this is the case, set this define to 0
-#define ALLOW_MISALIGNED_SIMD 1
-
 #ifdef __GNUC__
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-value"
@@ -1205,15 +1188,10 @@ static bool Render_Line_##NAME(TTF_Font *font, SDL_Surface *textbuf, int xstart,
             int remainder;                                                                                              \
             Uint8 *saved_buffer = image->buffer;                                                                        \
             int saved_width = image->width;                                                                             \
-                                                                                                                        \
+            image->buffer += alignment;                                                                                 \
             /* Position updated after glyph rendering */                                                                \
             x = xstart + FT_FLOOR(x) + image->left;                                                                     \
             y = ystart + FT_FLOOR(y) - image->top;                                                                      \
-                                                                                                                        \
-            if (image->buffer == NULL) {                                                                                \
-                continue;                                                                                               \
-            }                                                                                                           \
-            image->buffer += alignment;                                                                                 \
                                                                                                                         \
             /* Make sure glyph is inside textbuf */                                                                     \
             above_w = x + image->width - textbuf->w;                                                                    \
@@ -1242,22 +1220,12 @@ static bool Render_Line_##NAME(TTF_Font *font, SDL_Surface *textbuf, int xstart,
                     dstskip = textbuf->pitch - image->width * bpp;                                                      \
                     BG_Blended_LCD(image, (Uint32 *)dst, srcskip, dstskip, fg);                                         \
                 } else if (!IS_BLENDED || image->is_color == 0) {                                                       \
-                    if (ALLOW_MISALIGNED_SIMD || ((srcskip & alignment) == 0 && (dstskip & alignment) == 0)) {          \
-                        if (IS_BLENDED_OPAQUE) {                                                                        \
-                            BLIT_GLYPH_BLENDED_OPAQUE_OPTIM(image, (Uint32 *)dst, srcskip, dstskip);                    \
-                        } else if (IS_BLENDED) {                                                                        \
-                            BLIT_GLYPH_BLENDED_OPTIM(image, (Uint32 *)dst, srcskip, dstskip, fg_alpha);                 \
-                        } else if (image->is_color == 0) {                                                              \
-                            BLIT_GLYPH_OPTIM(image, dst, srcskip, dstskip);                                             \
-                        }                                                                                               \
-                    } else {                                                                                            \
-                        if (IS_BLENDED_OPAQUE) {                                                                        \
-                            BG_Blended_Opaque(image, (Uint32 *)dst, srcskip, dstskip);                                  \
-                        } else if (IS_BLENDED) {                                                                        \
-                            BG_Blended(image, (Uint32 *)dst, srcskip, dstskip, fg_alpha);                               \
-                        } else if (image->is_color == 0) {                                                              \
-                            BG(image, dst, srcskip, dstskip);                                                           \
-                        }                                                                                               \
+                    if (IS_BLENDED_OPAQUE) {                                                                            \
+                        BLIT_GLYPH_BLENDED_OPAQUE_OPTIM(image, (Uint32 *)dst, srcskip, dstskip);                        \
+                    } else if (IS_BLENDED) {                                                                            \
+                        BLIT_GLYPH_BLENDED_OPTIM(image, (Uint32 *)dst, srcskip, dstskip, fg_alpha);                     \
+                    } else if (image->is_color == 0) {                                                                                            \
+                        BLIT_GLYPH_OPTIM(image, dst, srcskip, dstskip);                                                 \
                     }                                                                                                   \
                 } else if (IS_BLENDED && image->is_color) {                                                             \
                     image->buffer = saved_buffer;                                                                       \
@@ -1961,7 +1929,7 @@ static void TTF_CloseFontSource(SDL_IOStream *src)
 
 TTF_Font *TTF_OpenFontWithProperties(SDL_PropertiesID props)
 {
-    TTF_Font *existing_font = SDL_GetPointerProperty(props, TTF_PROP_FONT_CREATE_EXISTING_FONT_POINTER, NULL);
+    TTF_Font *existing_font = SDL_GetPointerProperty(props, TTF_PROP_FONT_CREATE_EXISTING_FONT, NULL);
     const char *file = SDL_GetStringProperty(props, TTF_PROP_FONT_CREATE_FILENAME_STRING, NULL);
     SDL_IOStream *src = SDL_GetPointerProperty(props, TTF_PROP_FONT_CREATE_IOSTREAM_POINTER, NULL);
     Sint64 src_offset = SDL_GetNumberProperty(props, TTF_PROP_FONT_CREATE_IOSTREAM_OFFSET_NUMBER, 0);
@@ -2241,7 +2209,7 @@ TTF_Font *TTF_CopyFont(TTF_Font *existing_font)
     TTF_Font *font = NULL;
     SDL_PropertiesID props = SDL_CreateProperties();
     if (props) {
-        SDL_SetPointerProperty(props, TTF_PROP_FONT_CREATE_EXISTING_FONT_POINTER, existing_font);
+        SDL_SetPointerProperty(props, TTF_PROP_FONT_CREATE_EXISTING_FONT, existing_font);
         font = TTF_OpenFontWithProperties(props);
         SDL_DestroyProperties(props);
     }
@@ -2977,11 +2945,11 @@ static bool Load_Glyph(TTF_Font *font, c_glyph *cached, int want, int translatio
                         if (mono) {
                             pixmap[col] |= pixmap[col-1];
                         } else {
-                            int pixelvalue = (pixmap[col] + pixmap[col-1]);
-                            if (pixelvalue > NUM_GRAYS - 1) {
-                                pixelvalue = NUM_GRAYS - 1;
+                            int pixel = (pixmap[col] + pixmap[col-1]);
+                            if (pixel > NUM_GRAYS - 1) {
+                                pixel = NUM_GRAYS - 1;
                             }
-                            pixmap[col] = (Uint8) pixelvalue;
+                            pixmap[col] = (Uint8) pixel;
                         }
                     }
                 }
