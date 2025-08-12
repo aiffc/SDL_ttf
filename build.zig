@@ -10,6 +10,12 @@ pub fn build(b: *std.Build) void {
     });
     b.installArtifact(sdl_dep.artifact("SDL3"));
 
+    const freetype_dep = b.dependency("freetype", .{
+        .target = target,
+        .optimize = optimize,
+    });
+    b.installArtifact(freetype_dep.artifact("freetype"));
+
     const sdl_ttf_mod = b.createModule(.{
         .target = target,
         .optimize = optimize,
@@ -51,6 +57,7 @@ pub fn build(b: *std.Build) void {
     sdl_ttf_lib.addSystemIncludePath(b.path("SDL3"));
 
     sdl_ttf_lib.linkLibrary(sdl_dep.artifact("SDL3"));
+    sdl_ttf_lib.linkLibrary(sdl_dep.artifact("freetype"));
     sdl_ttf_lib.installHeadersDirectory(b.path("include/SDL3_ttf/"), "SDL3_ttf/", .{
         .exclude_extensions = &.{},
     });

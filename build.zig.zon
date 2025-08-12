@@ -36,6 +36,10 @@
             .url = "git+https://github.com/castholm/SDL.git#1994ca5dbad5a3e3c670a9ab8533d86cfd97bdc0",
             .hash = "sdl-0.2.6+3.2.20-7uIn9NgjfwHH5a6HhyLHat2nHU3OP5B05QHhKJKuxEex",
         },
+        .freetype = .{
+            .url = "git+https://github.com/aiffc/freetype#6061089c532260f368a2a6dbf3e456c5a53a3489",
+            .hash = "freetype-0.0.0-XjfKFJNNZACZDCo1FioaF8boIoJrY3gmhOroIaiQbdH0",
+        },
     },
     .paths = .{
         "build.zig",
