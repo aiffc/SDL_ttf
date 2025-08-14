@@ -10,8 +10,8 @@
             .hash = "sdl-0.2.6+3.2.20-7uIn9NgjfwHH5a6HhyLHat2nHU3OP5B05QHhKJKuxEex",
         },
         .freetype = .{
-            .url = "git+https://github.com/aiffc/freetype.git#c3daf183122b7d4c4ceec6bd274dc3d04a5fc3ed",
-            .hash = "freetype-0.0.1-XjfKFOIqhgBSbZ3ms7x4MAzrf2c3-ZFy04gpzO_eSFYt",
+            .url = "git+https://github.com/aiffc/freetype.git#f50a246e7111846e5e1ac0eb87a991727226b578",
+            .hash = "freetype-0.0.1-XjfKFBcrhgDFd8vTbNR9js9BwjQBWJRtuxoigUZqJLHN",
         },
     },
     .paths = .{
