@@ -54,6 +54,7 @@ pub fn build(b: *std.Build) void {
     });
 
     sdl_ttf_lib.addIncludePath(b.path("include/"));
+    sdl_ttf_lib.addSystemIncludePath(b.path("include/"));
     sdl_ttf_lib.addSystemIncludePath(sdl_dep.path("include/"));
     sdl_ttf_lib.addSystemIncludePath(freetype_dep.path("include/"));
 
