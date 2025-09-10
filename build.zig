@@ -59,8 +59,10 @@ pub fn build(b: *std.Build) void {
 
     sdl_ttf_lib.linkLibrary(sdl_dep.artifact("SDL3"));
     sdl_ttf_lib.linkLibrary(freetype_dep.artifact("freetype"));
-    sdl_ttf_lib.installHeadersDirectory(b.path("include/SDL3_ttf/"), "SDL3_ttf/", .{
-        .exclude_extensions = &.{},
-    });
+    // sdl_ttf_lib.installHeadersDirectory(b.path("include/SDL3_ttf/"), "SDL3_ttf/", .{
+    //     .exclude_extensions = &.{},
+    // });
+    sdl_image_lib.installHeader(b.path("include/SDL3_ttf/SDL_ttf.h"), "SDL3_ttf/SSDL_ttf.h");
+    sdl_image_lib.installHeader(b.path("include/SDL3_ttf/SDL_textengine.h"), "SDL3_ttf/SDL_textengine.h");
     b.installArtifact(sdl_ttf_lib);
 }
