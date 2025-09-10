@@ -53,17 +53,15 @@ pub fn build(b: *std.Build) void {
         },
     });
 
-    sdl_ttf_lib.addIncludePath(b.path("include/"));
+    // sdl_ttf_lib.addIncludePath(b.path("include/"));
     sdl_ttf_lib.addSystemIncludePath(b.path("include/"));
     sdl_ttf_lib.addSystemIncludePath(sdl_dep.path("include/"));
     sdl_ttf_lib.addSystemIncludePath(freetype_dep.path("include/"));
 
     sdl_ttf_lib.linkLibrary(sdl_dep.artifact("SDL3"));
     sdl_ttf_lib.linkLibrary(freetype_dep.artifact("freetype"));
-    // sdl_ttf_lib.installHeadersDirectory(b.path("include/SDL3_ttf/"), "SDL3_ttf/", .{
-    //     .exclude_extensions = &.{},
-    // });
-    sdl_ttf_lib.installHeader(b.path("include/SDL3_ttf/SDL_ttf.h"), "SDL3_ttf/SSDL_ttf.h");
-    sdl_ttf_lib.installHeader(b.path("include/SDL3_ttf/SDL_textengine.h"), "SDL3_ttf/SDL_textengine.h");
+    sdl_ttf_lib.installHeadersDirectory(b.path("include/SDL3_ttf/"), "SDL3_ttf/", .{
+        .exclude_extensions = &.{},
+    });
     b.installArtifact(sdl_ttf_lib);
 }
