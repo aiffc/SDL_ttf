@@ -54,7 +54,6 @@ pub fn build(b: *std.Build) void {
         },
     });
 
-    sdl_ttf_lib.addSystemIncludePath(b.path("include/"));
     sdl_ttf_lib.addSystemIncludePath(sdl_dep.path("include/"));
     sdl_ttf_lib.addSystemIncludePath(freetype_dep.path("include/"));
 
@@ -62,9 +61,11 @@ pub fn build(b: *std.Build) void {
 
     switch (builtin.target.os.tag) {
         .macos => {
+            sdl_ttf_lib.addSystemIncludePath(b.path("include/"));
             sdl_ttf_lib.addObjectFile(.{ .cwd_relative = "/opt/homebrew/lib/libfreetype.a" });
         },
         .linux, .windows => {
+            sdl_ttf_lib.addIncludePath(b.path("include/"));
             sdl_ttf_lib.linkSystemLibrary("freetype");
         },
         else => {
